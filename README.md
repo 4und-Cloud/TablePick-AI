@@ -1,7 +1,8 @@
 # TablePick-AI
 Goorm X Kakao ProFect 에서 진행한 4조 4und Cloud의 프로젝트 TablePick AI팀 입니다.
 
-### 폴더구조조
+### 폴더구조
+```
 data/	        데이터 관련 파일 저장.
 ├── raw/            # 원본 데이터(raw)
 ├── processed/      # 전처리된 데이터
@@ -38,3 +39,4 @@ docs/	        프로젝트 설명, 문서화 파일, README 등 저장.
 ├── api/            # API 문서
 ├── tutorials/      # 튜토리얼/가이드
 └── images/         # 문서용 이미지
+```
