@@ -39,4 +39,8 @@ docs/	        프로젝트 설명, 문서화 파일, README 등 저장.
 ├── api/            # API 문서
 ├── tutorials/      # 튜토리얼/가이드
 └── images/         # 문서용 이미지
+logs/
+├── crawling/       # 크롤링 관련 로그
+├── training/       # 모델 학습 관련 로그
+└── api/            # API 서비스 관련 로그
 ```
