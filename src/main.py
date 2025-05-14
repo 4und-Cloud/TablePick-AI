@@ -1,42 +1,55 @@
-from fastapi import FastAPI, Query, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from typing import List, Optional
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-import sys
-import os
+from typing import List, Optional
+from src.models.prototype_recommendation import RecommendationModel
 
-# 프로젝트 루트 디렉토리를 sys.path에 추가
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+app = FastAPI(swagger_ui_parameters={"syntaxHighlight": True})
 
+# 추천 모델 인스턴스 생성
+recommendation_model = RecommendationModel()
 
-app = FastAPI(
-    title="TablePick AI API",
-    description="음식점 추천 API",
-    version="0.1.0"
-)
+class RestaurantRecommendation(BaseModel):
+    restaurant_id: int
+    name: str
+    address: str
+    category: str
 
-# CORS 설정
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
+class TagPreferences(BaseModel):
+    tags: List[str]
 
 @app.get("/")
 async def root():
-    return {"message": "TablePick AI API에 오신 것을 환영합니다!"}
+    return {"message": "Restaurant Recommendation API"}
 
-# 요청 모델 정의
-class PreferenceRequest(BaseModel):
-    preferences: List[str]
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
-    top_n: int = 5
-    max_distance_km: float = 5.0
-
+@app.post("/recommendations/{user_id}", response_model=List[RestaurantRecommendation])
+async def recommend_by_tags(
+    user_id: int,
+    preferences: TagPreferences,
+    top_n: Optional[int] = 10
+):
+    """
+    태그 리스트를 기반으로 음식점 추천을 제공합니다.
+    """
+    # 태그 기반 추천
+    recommendations = recommendation_model.recommend_by_tags(
+        tags=preferences.tags,
+        top_n=top_n
+    )
+    
+    if recommendations.empty:
+        raise HTTPException(status_code=404, detail="제공된 태그에 맞는 추천을 생성할 수 없습니다.")
+    
+    # 결과 포맷팅
+    result = []
+    for idx, row in recommendations.iterrows():
+        result.append({
+            "restaurant_id": int(idx),
+            "name": row["음식점_이름"],
+            "address": row["주소"],
+            "category": row["카테고리"]
+        })
+    
+    return result
 
 if __name__ == "__main__":
     import uvicorn
