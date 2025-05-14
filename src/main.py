@@ -10,9 +10,6 @@ recommendation_model = RecommendationModel()
 
 class RestaurantRecommendation(BaseModel):
     restaurant_id: int
-    name: str
-    address: str
-    category: str
 
 class TagPreferences(BaseModel):
     tags: List[str]
@@ -43,10 +40,7 @@ async def recommend_by_tags(
     result = []
     for idx, row in recommendations.iterrows():
         result.append({
-            "restaurant_id": int(idx),
-            "name": row["음식점_이름"],
-            "address": row["주소"],
-            "category": row["카테고리"]
+            "restaurant_id": int(idx)
         })
     
     return result
