@@ -82,7 +82,7 @@ class NaverMapCrawler:
                 break
             last_height = new_height
     
-    def search_restaurant(self, restaurant_name: str, district: str = "강남구") -> bool:
+    def search_restaurant(self, restaurant_name: str, district: str = "서울") -> bool:
         """
         음식점 검색 및 상세 페이지로 이동
         
@@ -93,53 +93,63 @@ class NaverMapCrawler:
         Returns:
             bool: 검색 성공 여부
         """
-        search_url = f"https://map.naver.com/p/search/{restaurant_name} {district}"
+        # district가 restaurant_name에 포함되어 있는지 확인
+        if district in restaurant_name:
+            search_queries = [
+                f"{restaurant_name} 음식점",
+                f"{restaurant_name} 카페"
+            ]
+        else:
+            search_queries = [
+                f"{restaurant_name} {district} 음식점",
+                f"{restaurant_name} {district} 카페"
+            ]
         
-        try:
-            self.driver.get(search_url)
-            
-            # 검색 결과 iframe 진입 시도
+        for search_query in search_queries:
             try:
-                self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "iframe#entryIframe")))
-            except:
-                # 검색 결과 iframe 진입
-                self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "iframe#searchIframe")))
-                self.driver.switch_to.frame("searchIframe")
+                print(f"검색 시도: {search_query}")
+                search_url = f"https://map.naver.com/p/search/{search_query}"
+                self.driver.get(search_url)
                 
-               # 음식점 이름에서 괄호 이전 부분만 추출
-                short_name = re.split(r'\s*\(', restaurant_name)[0]
-
-                # 검색 결과 목록 가져오기
-                results = self.driver.find_elements(By.CSS_SELECTOR, "a.place_link, a[role='button']")
-
-                # 띄어쓰기를 제거하고 이름 비교
-                found = False
-                for result in results:
-                    try:
-                        result_name = result.text.replace(" ", "")
-                        search_name = short_name.replace(" ", "")
-                        
-                        if search_name in result_name:
-                            result.click()
-                            found = True
-                            break
-                    except Exception:
+                # 검색 결과 iframe 진입 시도
+                try:
+                    # 바로 상세 페이지로 이동한 경우
+                    self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "iframe#entryIframe")))
+                    self.driver.switch_to.frame("entryIframe")
+                    return True
+                except:
+                    # 검색 결과 iframe 진입
+                    self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "iframe#searchIframe")))
+                    self.driver.switch_to.frame("searchIframe")
+                    
+                    # 검색 결과 목록 가져오기
+                    results = self.driver.find_elements(By.CSS_SELECTOR, "a.place_bluelink, a.place_link")
+                    
+                    # 첫 번째 검색 결과 클릭 (이름 비교 없이)
+                    if results:
+                        try:
+                            results[0].click()
+                            self.driver.switch_to.default_content()
+                            self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "iframe#entryIframe")))
+                            self.driver.switch_to.frame("entryIframe")
+                            return True
+                        except Exception as e:
+                            print(f"결과 클릭 실패: {e}")
+                            self.driver.switch_to.default_content()
+                            continue
+                    else:
+                        # 결과가 없으면 다음 검색어로 시도
+                        self.driver.switch_to.default_content()
                         continue
-
-                if not found:
-                    print(f"검색 결과에서 '{restaurant_name}'을 찾거나 클릭할 수 없습니다")
-                    return False
-
-                
-                self.driver.switch_to.default_content()
-                self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "iframe#entryIframe")))
             
-            self.driver.switch_to.frame("entryIframe")
-            return True
-            
-        except Exception as e:
-            print(f"음식점 검색 중 오류 발생: {e}")
-            return False
+            except Exception as e:
+                print(f"검색 시도 실패 ({search_query}): {e}")
+                continue
+        
+        print(f"모든 검색 시도 실패: {restaurant_name}")
+        return False
+
+
     
     def extract_basic_info(self) -> Dict[str, str]:
         """기본 음식점 정보 추출"""
@@ -164,14 +174,18 @@ class NaverMapCrawler:
             for row in openhour_rows:
                 try:
                     day = self.safe_find_element(row, By.CSS_SELECTOR, "span.i8cJw")
-                    hours = self.safe_find_element(row, By.CSS_SELECTOR, "div.H3ua4").replace('\n', '; ')
-                    openhours.append(f"{day}: {hours}")
+                    hours_element = row.find_element(By.CSS_SELECTOR, "div.H3ua4")
+                    if hours_element:  # 영업시간 요소가 존재하는지 확인
+                        hours = hours_element.text.replace('\n', '; ')
+                        if day and hours:  # 둘 다 값이 있는 경우만 추가
+                            openhours.append(f"{day}: {hours}")
                 except Exception:
                     continue
             
             return "; ".join(openhours) if openhours else "정보 없음"
         except Exception:
             return "정보 없음"
+
     
     def extract_reviews(self, max_reviews: int = 50) -> List[Dict[str, Any]]:
         """리뷰 데이터 추출"""
@@ -270,20 +284,40 @@ class NaverMapCrawler:
     
     def extract_menu_info(self) -> List[Dict[str, str]]:
         """메뉴 정보 추출"""
+        menus = []
+        
         try:
-            self.wait.until(EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), '메뉴')]"))).click()
-            time.sleep(0.2)
-            self.scroll_to_load(self.driver, max_scrolls=5, pause_time=0.1)
+            # 1. 먼저 메뉴 탭이 있는지 확인 (더 정확한 XPath 사용)
+            menu_tabs = self.driver.find_elements(By.XPATH, "//span[contains(text(), '메뉴')]")
+            menu_tab_exists = len(menu_tabs) > 0
             
-            menus = []
-            for selector in [("li.order_list_item", "div.tit", "div.price > strong"), 
-                            ("li.E2jtL", "span.lPzHi", "div.GXS1X em")]:
-                items = self.driver.find_elements(By.CSS_SELECTOR, selector[0])
-                for item in items:
-                    name = self.safe_find_element(item, By.CSS_SELECTOR, selector[1])
-                    price = self.safe_find_element(item, By.CSS_SELECTOR, selector[2])
-                    if name != "정보 없음" and price != "정보 없음":
-                        menus.append({"메뉴명": name, "가격": price})
+            if menu_tab_exists:
+                print("메뉴 탭을 찾았습니다. 메뉴 탭에서 정보를 추출합니다.")
+                try:
+                    # 메뉴 탭 클릭
+                    menu_tabs[0].click()
+                    time.sleep(0.5)  # 로딩 시간 약간 늘림
+                    self.scroll_to_load(self.driver, max_scrolls=5, pause_time=0.2)
+                    
+                    # 메뉴 탭에서 메뉴 정보 추출
+                    for selector in [("li.order_list_item", "div.tit", "div.price > strong"), 
+                                    ("li.E2jtL", "span.lPzHi", "div.GXS1X em")]:
+                        items = self.driver.find_elements(By.CSS_SELECTOR, selector[0])
+                        for item in items:
+                            name = self.safe_find_element(item, By.CSS_SELECTOR, selector[1])
+                            price = self.safe_find_element(item, By.CSS_SELECTOR, selector[2])
+                            if name != "정보 없음" and price != "정보 없음":
+                                menus.append({"메뉴명": name, "가격": price})
+                    
+                    if not menus:  # 메뉴 탭에서 메뉴를 찾지 못한 경우
+                        print("메뉴 탭에서 메뉴 정보를 찾지 못했습니다. 홈 탭에서 시도합니다.")
+                        self._extract_menu_from_home_tab(menus)
+                except Exception as e:
+                    print(f"메뉴 탭에서 정보 추출 중 오류: {e}")
+                    self._extract_menu_from_home_tab(menus)
+            else:
+                print("메뉴 탭이 없어 홈 탭에서 메뉴 정보를 찾습니다.")
+                self._extract_menu_from_home_tab(menus)
             
             # 중복 제거
             unique = set()
@@ -292,9 +326,44 @@ class NaverMapCrawler:
                             and not unique.add((menu['메뉴명'], menu['가격']))]
             
             return deduped_menus
+        
         except Exception as e:
             print(f"메뉴 정보 추출 중 오류: {e}")
-            return []
+            return menus  # 빈 리스트가 아닌 현재까지 수집된 메뉴 반환
+
+    def _extract_menu_from_home_tab(self, menus: List[Dict[str, str]]):
+        """홈 탭에서 메뉴 정보 추출"""
+        try:
+            # 홈 탭으로 이동
+            home_tabs = self.driver.find_elements(By.XPATH, "//span[contains(text(), '홈')]")
+            if home_tabs:
+                home_tabs[0].click()
+                time.sleep(0.3)
+            
+            # 펼쳐보기 버튼 찾아 클릭
+            expand_buttons = self.driver.find_elements(By.XPATH, "//a[@role='button'][contains(text(), '펼쳐보기')]")
+            if expand_buttons:
+                expand_buttons[0].click()
+                time.sleep(0.3)
+                
+                # 펼쳐진 메뉴 목록에서 메뉴 정보 추출
+                menu_items = self.driver.find_elements(By.CSS_SELECTOR, "ul.Jp8E6 li")
+                for item in menu_items:
+                    try:
+                        name_element = item.find_element(By.CSS_SELECTOR, "span.A_cdD")
+                        price_element = item.find_element(By.CSS_SELECTOR, "div.CLSES em")
+                        
+                        name = name_element.text
+                        price = price_element.text
+                        
+                        if name and price:
+                            menus.append({"메뉴명": name, "가격": price})
+                    except Exception as e:
+                        continue
+        except Exception as e:
+            print(f"홈 탭에서 메뉴 정보 추출 중 오류: {e}")
+
+
     
     def get_restaurant_data(self, restaurant_name: str, district: str = "강남구") -> Optional[Dict[str, Any]]:
         """
@@ -318,14 +387,14 @@ class NaverMapCrawler:
             
             # 영업시간 추출
             data['영업시간'] = self.extract_opening_hours()
+
+            # 메뉴 정보 추출
+            menu_data = self.extract_menu_info()
+            data['메뉴_정보'] = json.dumps(menu_data, ensure_ascii=False)
             
             # 리뷰 추출
             review_data = self.extract_reviews()
             data['리뷰'] = json.dumps(review_data, ensure_ascii=False)
-            
-            # 메뉴 정보 추출
-            menu_data = self.extract_menu_info()
-            data['메뉴_정보'] = json.dumps(menu_data, ensure_ascii=False)
             
             return data
             
