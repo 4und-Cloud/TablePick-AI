@@ -106,16 +106,30 @@ class NaverMapCrawler:
                 self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "iframe#searchIframe")))
                 self.driver.switch_to.frame("searchIframe")
                 
-                # 음식점 이름에서 괄호 이전 부분만 추출하여 검색
+               # 음식점 이름에서 괄호 이전 부분만 추출
                 short_name = re.split(r'\s*\(', restaurant_name)[0]
-                target_xpath = f"//a[@role='button'][.//span[contains(text(), '{short_name}')]]"
-                
-                try:
-                    first_result = self.driver.find_element(By.XPATH, target_xpath)
-                    first_result.click()
-                except Exception as e:
-                    print(f"검색 결과에서 '{restaurant_name}'을 찾거나 클릭할 수 없습니다: {e}")
+
+                # 검색 결과 목록 가져오기
+                results = self.driver.find_elements(By.CSS_SELECTOR, "a.place_link, a[role='button']")
+
+                # 띄어쓰기를 제거하고 이름 비교
+                found = False
+                for result in results:
+                    try:
+                        result_name = result.text.replace(" ", "")
+                        search_name = short_name.replace(" ", "")
+                        
+                        if search_name in result_name:
+                            result.click()
+                            found = True
+                            break
+                    except Exception:
+                        continue
+
+                if not found:
+                    print(f"검색 결과에서 '{restaurant_name}'을 찾거나 클릭할 수 없습니다")
                     return False
+
                 
                 self.driver.switch_to.default_content()
                 self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "iframe#entryIframe")))
