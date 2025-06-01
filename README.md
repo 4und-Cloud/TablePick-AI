@@ -51,5 +51,4 @@ python src/data/initial_data_cleaning.py --input "data/raw/서울시 영등포�
 
 ### 크롤링 코드 사용법
 ex
-python src/data/crawler.py --input data/interim/gwanak_restaurants_cleaned.csv --output data/external/gwanak_crawling_restaurant_data.csv --district 관악 --start 1756
-
+python src/data/crawler.py --input data/interim/ydp_restaurants_cleaned.csv --output data/external/ydp_crawling_restaurant_data.csv --district 영등포구 --start 3411
