@@ -97,12 +97,10 @@ class NaverMapCrawler:
         if district in restaurant_name:
             search_queries = [
                 f"{restaurant_name} 음식점",
-                f"{restaurant_name} 카페"
             ]
         else:
             search_queries = [
                 f"{restaurant_name} {district} 음식점",
-                f"{restaurant_name} {district} 카페"
             ]
         
         for search_query in search_queries:
