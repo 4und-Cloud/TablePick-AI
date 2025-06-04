@@ -321,6 +321,7 @@ class RestaurantDataProcessor:
                     repetition_penalty=1.5,
                 )
                 title = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
+                title = re.sub(r'\[.*?\]', '', title).strip()
                 review['제목'] = title
             return json.dumps(reviews, ensure_ascii=False)
         except Exception as e:

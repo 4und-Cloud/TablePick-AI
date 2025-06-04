@@ -1,3 +1,4 @@
+import uvicorn, re, logging
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
@@ -54,6 +55,7 @@ async def generate_title(request: PostRequest):
         repetition_penalty=1.5,
     )
     title = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
+    title = re.sub(r'\[.*?\]', '', title).strip()
     return {"title": title}
 
 @app.post("/recommendations/tags", response_model=List[RestaurantRecommendation])
@@ -268,5 +270,4 @@ async def recommend_hybrid(
     return result
 
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("src.main:app", host="0.0.0.0", port=8000, reload=True)
