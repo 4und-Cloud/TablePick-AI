@@ -45,10 +45,21 @@ logs/
 └── api/            # API 서비스 관련 로그
 ```
 
+### 가상환경
+
+
 ### 초기 데이터 정제
 ex
 python src/data/initial_data_cleaning.py --input "data/raw/서울시 영등포구 일반음식점 인허가 정보.csv" --output "data/interim/ydp_restaurants_cleaned.csv"
 
 ### 크롤링 코드 사용법
 ex
-python src/data/crawler.py --input data/interim/ydp_restaurants_cleaned.csv --output data/external/ydp_crawling_restaurant_data.csv --district 영등포구 --start 3411
+python src/data/crawler.py --input data/interim/ydp_restaurants_cleaned.csv --output data/external/ydp_crawling_restaurant_data.csv --district 영등포구 --start 4726
+
+### 크롤링 데이터 정제
+ex (api-key는 env파일에 설정하셨다면 넣지 않으셔도 됩니다.)
+python src/data/crawling_data_cleaning.py --api-key 발급받은키 --input ../../data/external/gangnam_crawling_restaurant_data.csv --output ../../data/preprocessed/gangnam_restaurants_cleaned_data.csv
+
+### 버전
+python 3.11.8
+rust 1.72.1

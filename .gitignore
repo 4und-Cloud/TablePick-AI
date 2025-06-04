@@ -1,7 +1,5 @@
-# 가상환경 폴더 제외
+.env
 venv/
-.venv/
-env/
 *.log
 __pycache__/
 *.pyc
