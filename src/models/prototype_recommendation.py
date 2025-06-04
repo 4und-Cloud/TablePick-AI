@@ -20,7 +20,7 @@ class RecommendationModel:
         # 프로젝트 루트 경로 찾기
         script_dir = os.path.dirname(os.path.abspath(__file__))  # 현재 스크립트 위치
         project_root = os.path.abspath(os.path.join(script_dir, '../..'))  # 프로젝트 루트
-        file_path = os.path.join(project_root, 'data/external/google_gangnam_crawling_data.csv')
+        file_path = os.path.join(project_root, 'data/preprocessed/google_gangnam_crawling_data_cleaned.csv')
         
         # 데이터 로드
         self.df = pd.read_csv(file_path)
@@ -62,7 +62,14 @@ class RecommendationModel:
         if isinstance(row["음식점_태그"], list):
             tags = " ".join([tag["tags"] for tag in row["음식점_태그"] if "tags" in tag])
 
-        return f"{tags}".strip()
+        # 카테고리 추출
+        category = row.get("카테고리", "")
+        
+        # 메뉴 정보 추출
+        menu = row.get("메뉴_정보", "")
+
+        # 합치기
+        return f"{tags} {category} {menu}".strip()
     
     def create_tfidf_matrix(self):
         # TF-IDF 벡터화
