@@ -4,7 +4,15 @@ import time
 import re
 import json
 import random
+from dotenv import load_dotenv
+import os
+import argparse
 from datetime import datetime, timedelta
+from transformers import PreTrainedTokenizerFast, BartForConditionalGeneration
+
+# kobart-title 모델 및 토크나이저 로드 (최초 1회만)
+tokenizer = PreTrainedTokenizerFast.from_pretrained("EbanLee/kobart-title")
+model = BartForConditionalGeneration.from_pretrained("EbanLee/kobart-title")
 
 class RestaurantDataProcessor:
     def __init__(self, api_key):
@@ -290,6 +298,35 @@ class RestaurantDataProcessor:
         except (json.JSONDecodeError, TypeError):
             return review_str
     
+    def add_titles_to_review(self, review_str):
+        """리뷰 리스트 내 각 게시글에 kobart-title 기반 제목 생성 추가"""
+        try:
+            reviews = json.loads(review_str)
+            for review in reviews:
+                post = review.get('게시글', '')
+                # 게시글이 비어있으면 제목도 빈 문자열
+                if not post or not isinstance(post, str) or post.strip() == "":
+                    review['제목'] = ""
+                    continue
+                # kobart-title로 제목 생성
+                input_ids = tokenizer.encode(post, return_tensors="pt", max_length=1024, truncation=True)
+                summary_ids = model.generate(
+                    input_ids=input_ids,
+                    bos_token_id=model.config.bos_token_id,
+                    eos_token_id=model.config.eos_token_id,
+                    length_penalty=1.0,
+                    max_length=40,
+                    min_length=3,
+                    num_beams=6,
+                    repetition_penalty=1.5,
+                )
+                title = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
+                review['제목'] = title
+            return json.dumps(reviews, ensure_ascii=False)
+        except Exception as e:
+            # 파싱 실패 시 원본 반환
+            return review_str
+
     def process_complete_pipeline(self, input_file, output_file):
         """전체 파이프라인 실행"""
         print("=== 강남구 음식점 데이터 전체 처리 시작 ===")
@@ -358,14 +395,18 @@ class RestaurantDataProcessor:
         # 9. 리뷰에 작성시간 추가
         print("9. 리뷰에 작성시간 추가 중...")
         df['리뷰'] = df['리뷰'].apply(self.add_created_time_to_review)
+
+        # 10. 제목 추출
+        print("10. 리뷰에 제목 생성 중...")
+        df['리뷰'] = df['리뷰'].apply(self.add_titles_to_review)
         
-        # 10. 불필요한 컬럼 제거
-        print("10. 최종 정리 중...")
+        # 11. 불필요한 컬럼 제거
+        print("11. 최종 정리 중...")
         columns_to_drop = ['지오코딩_상태']
         df = df.drop(columns=[col for col in columns_to_drop if col in df.columns])
         
-        # 11. 결과 저장
-        print("11. 결과 저장 중...")
+        # 12. 결과 저장
+        print("12. 결과 저장 중...")
         df.to_csv(output_file, index=False, encoding='utf-8-sig')
         
         print(f"\n=== 처리 완료 ===")
@@ -374,23 +415,31 @@ class RestaurantDataProcessor:
         
         return df
 
-# 사용 예시
-if __name__ == "__main__":
-    API_KEY = "AB406882-BC3B-3852-B9BB-A10D73FB3A19"  # 실제 API 키로 변경
-    INPUT_FILE = "../../data/external/gangnam_crawling_restaurant_data.csv"
-    OUTPUT_FILE = "../../data/preprocessed/gangnam_restaurants_final_complete.csv"
-    
-    processor = RestaurantDataProcessor(API_KEY)
-    
+def main():
+    load_dotenv()
+
+    parser = argparse.ArgumentParser(description='강남구 음식점 데이터 처리 파이프라인')
+    parser.add_argument('--api-key', type=str, default=None, help='VWorld API Key (환경변수 VWORLD_API_KEY 기본값)')
+    parser.add_argument('--input', '-i', type=str, required=True, help='입력 CSV 파일 경로')
+    parser.add_argument('--output', '-o', type=str, required=True, help='출력 CSV 파일 경로')
+    args = parser.parse_args()
+
+    # 우선순위: 명령줄 인자 > 환경변수
+    api_key = args.api_key or os.getenv("VWORLD_API_KEY")
+    if not api_key:
+        raise ValueError("API 키가 필요합니다. --api-key 옵션 또는 VWORLD_API_KEY 환경변수를 설정하세요.")
+
+    processor = RestaurantDataProcessor(api_key)
+
     try:
-        result_df = processor.process_complete_pipeline(INPUT_FILE, OUTPUT_FILE)
+        result_df = processor.process_complete_pipeline(args.input, args.output)
         print("\n처리가 성공적으로 완료되었습니다!")
-        
-        # 결과 미리보기
         print("\n=== 결과 미리보기 ===")
         print(f"컬럼: {list(result_df.columns)}")
         print(f"샘플 데이터:")
         print(result_df[['음식점_이름', '카테고리', '주소', '위도', '경도']].head())
-        
     except Exception as e:
         print(f"오류 발생: {e}")
+
+if __name__ == "__main__":
+    main()
