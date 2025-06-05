@@ -1,0 +1,11 @@
+venv_python:
+  windows: "venv/Scripts/python.exe"
+  linux: "venv/bin/python"
+export_scripts:
+  - "src/data/export_user_data.py"
+  - "src/data/export_post_data.py"
+data:
+  restaurant: "preprocessed/gangnam_restaurants_cleaned_data.csv"
+  user: "external/user_data.csv"
+  visit: "external/user_visit.csv"
+  post: "external/post_data.csv"
