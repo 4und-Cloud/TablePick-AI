@@ -35,15 +35,17 @@ async def generate_title(request: PostRequest):
     return {"title": title}
 
 
-@router.get("/recommend-for-user/{user_id}", response_model=List[Dict[str, Any]], summary="유저 데이터 기반 게시글 추천")
+@router.get("/recommend-for-user/{user_id}", response_model=List[int], summary="유저 데이터 기반 게시글 추천")
 def recommend_posts_for_user(
     user_id: int,
-    top_n: int = Query(10, description="추천할 게시글 수")
+    page: int = Query(0, description="페이지 번호"),
+    size: int = Query(6, description="페이지당 추천 게시글 수")
 ):
     """
     user_id로 사용자 태그를 추출, 태그와 게시글 텍스트 임베딩 기반 ML 추천
     """
-    results = recommendation_model.recommend_posts(user_id=user_id, top_n=top_n)
+    print(f"API 호출: user_id={user_id}, page={page}, size={size}")
+    results = recommendation_model.recommend_posts(user_id=user_id, page=page, size=size)
     if not results:
         raise HTTPException(status_code=404, detail="추천 게시글이 없습니다.")
     return results
