@@ -23,7 +23,8 @@ LEFT JOIN member m ON b.member_id = m.id
 LEFT JOIN board_tag bt ON b.id = bt.board_id
 LEFT JOIN tag t ON bt.tag_id = t.id
 LEFT JOIN board_image bi ON b.id = bi.board_id
-GROUP BY b.id;
+GROUP BY b.id
+HAVING images IS NOT NULL;
 """
 
 # pandas에서 SQLAlchemy 엔진으로 바로 읽기
