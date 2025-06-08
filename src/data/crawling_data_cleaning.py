@@ -8,11 +8,11 @@ from dotenv import load_dotenv
 import os
 import argparse
 from datetime import datetime, timedelta
-from transformers import PreTrainedTokenizerFast, BartForConditionalGeneration
+# from transformers import PreTrainedTokenizerFast, BartForConditionalGeneration
 
-# kobart-title 모델 및 토크나이저 로드 (최초 1회만)
-tokenizer = PreTrainedTokenizerFast.from_pretrained("EbanLee/kobart-title")
-model = BartForConditionalGeneration.from_pretrained("EbanLee/kobart-title")
+# # kobart-title 모델 및 토크나이저 로드 (최초 1회만)
+# tokenizer = PreTrainedTokenizerFast.from_pretrained("EbanLee/kobart-title")
+# model = BartForConditionalGeneration.from_pretrained("EbanLee/kobart-title")
 
 class RestaurantDataProcessor:
     def __init__(self, api_key):
@@ -31,6 +31,7 @@ class RestaurantDataProcessor:
             r'\s*\d+호.*$',
             r'\s*[가-힣]+\s*\d+호.*$',
             r'\s*[A-Za-z0-9\s]+호.*$',
+            r'\s*[A-Za-z0-9\s]+동.*$',
         ]
         
         for pattern in patterns_to_remove:
@@ -94,6 +95,8 @@ class RestaurantDataProcessor:
         """여러 방법으로 좌표를 얻는 함수"""
         if pd.isna(address) or address == "":
             return None, None, "빈 주소"
+        
+        status = "시도 안함"
             
         # 방법 1: 정제된 주소로 시도
         cleaned = self.clean_address_advanced(address)
@@ -113,7 +116,7 @@ class RestaurantDataProcessor:
     
     def extract_simple_address(self, address):
         """매우 간단한 주소 추출"""
-        simple_pattern = r'(서울\s*강남구\s*[가-힣]+(?:로|길|대로))'
+        simple_pattern = r'(서울\s*관악악구\s*[가-힣]+(?:로|길|대로))'
         match = re.search(simple_pattern, address)
         if match:
             return match.group(1)
@@ -174,9 +177,9 @@ class RestaurantDataProcessor:
         
         return df_result
     
-    def filter_gangnam_only(self, df):
-        """강남구 데이터만 필터링"""
-        return df[df['주소'].str.contains('강남구', na=False)].copy().reset_index(drop=True)
+    def filter_gu_only(self, df):
+        """특정구 데이터만 필터링"""
+        return df[df['주소'].str.contains('관악구', na=False)].copy().reset_index(drop=True)
     
     def format_time_range(self, time_str):
         """시간 범위를 오전/오후 형식으로 변환"""
@@ -298,39 +301,39 @@ class RestaurantDataProcessor:
         except (json.JSONDecodeError, TypeError):
             return review_str
     
-    def add_titles_to_review(self, review_str):
-        """리뷰 리스트 내 각 게시글에 kobart-title 기반 제목 생성 추가"""
-        try:
-            reviews = json.loads(review_str)
-            for review in reviews:
-                post = review.get('게시글', '')
-                # 게시글이 비어있으면 제목도 빈 문자열
-                if not post or not isinstance(post, str) or post.strip() == "":
-                    review['제목'] = ""
-                    continue
-                # kobart-title로 제목 생성
-                input_ids = tokenizer.encode(post, return_tensors="pt", max_length=1024, truncation=True)
-                summary_ids = model.generate(
-                    input_ids=input_ids,
-                    bos_token_id=model.config.bos_token_id,
-                    eos_token_id=model.config.eos_token_id,
-                    length_penalty=1.0,
-                    max_length=40,
-                    min_length=3,
-                    num_beams=6,
-                    repetition_penalty=1.5,
-                )
-                title = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
-                title = re.sub(r'\[.*?\]', '', title).strip()
-                review['제목'] = title
-            return json.dumps(reviews, ensure_ascii=False)
-        except Exception as e:
-            # 파싱 실패 시 원본 반환
-            return review_str
+    # def add_titles_to_review(self, review_str):
+    #     """리뷰 리스트 내 각 게시글에 kobart-title 기반 제목 생성 추가"""
+    #     try:
+    #         reviews = json.loads(review_str)
+    #         for review in reviews:
+    #             post = review.get('게시글', '')
+    #             # 게시글이 비어있으면 제목도 빈 문자열
+    #             if not post or not isinstance(post, str) or post.strip() == "":
+    #                 review['제목'] = ""
+    #                 continue
+    #             # kobart-title로 제목 생성
+    #             input_ids = tokenizer.encode(post, return_tensors="pt", max_length=1024, truncation=True)
+    #             summary_ids = model.generate(
+    #                 input_ids=input_ids,
+    #                 bos_token_id=model.config.bos_token_id,
+    #                 eos_token_id=model.config.eos_token_id,
+    #                 length_penalty=1.0,
+    #                 max_length=40,
+    #                 min_length=3,
+    #                 num_beams=6,
+    #                 repetition_penalty=1.5,
+    #             )
+    #             title = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
+    #             title = re.sub(r'\[.*?\]', '', title).strip()
+    #             review['제목'] = title
+    #         return json.dumps(reviews, ensure_ascii=False)
+    #     except Exception as e:
+    #         # 파싱 실패 시 원본 반환
+    #         return review_str
 
     def process_complete_pipeline(self, input_file, output_file):
         """전체 파이프라인 실행"""
-        print("=== 강남구 음식점 데이터 전체 처리 시작 ===")
+        print("=== 음식점 데이터 전체 처리 시작 ===")
         
         # 1. 데이터 로드
         print("1. 데이터 로딩 중...")
@@ -353,10 +356,10 @@ class RestaurantDataProcessor:
         df = self.remove_duplicates_smart(df)
         print(f"   중복 제거 후 데이터: {len(df)}개")
         
-        # 5. 강남구만 필터링
-        print("5. 강남구 데이터만 필터링 중...")
-        df = self.filter_gangnam_only(df)
-        print(f"   강남구 데이터: {len(df)}개")
+        # 5. 특정 구만 필터링
+        print("5. 데이터만 필터링 중...")
+        df = self.filter_gu_only(df)
+        print(f"   데이터: {len(df)}개")
         
         # 6. 영업시간 정제 (정보 없음 → 기본값)
         print("6. 영업시간 기본값 설정 중...")
@@ -397,9 +400,9 @@ class RestaurantDataProcessor:
         print("9. 리뷰에 작성시간 추가 중...")
         df['리뷰'] = df['리뷰'].apply(self.add_created_time_to_review)
 
-        # 10. 제목 추출
-        print("10. 리뷰에 제목 생성 중...")
-        df['리뷰'] = df['리뷰'].apply(self.add_titles_to_review)
+        # # 10. 제목 추출
+        # print("10. 리뷰에 제목 생성 중...")
+        # df['리뷰'] = df['리뷰'].apply(self.add_titles_to_review)
         
         # 11. 불필요한 컬럼 제거
         print("11. 최종 정리 중...")
@@ -419,7 +422,7 @@ class RestaurantDataProcessor:
 def main():
     load_dotenv()
 
-    parser = argparse.ArgumentParser(description='강남구 음식점 데이터 처리 파이프라인')
+    parser = argparse.ArgumentParser(description='특정 구 음식점 데이터 처리 파이프라인')
     parser.add_argument('--api-key', type=str, default=None, help='VWorld API Key (환경변수 VWORLD_API_KEY 기본값)')
     parser.add_argument('--input', '-i', type=str, required=True, help='입력 CSV 파일 경로')
     parser.add_argument('--output', '-o', type=str, required=True, help='출력 CSV 파일 경로')

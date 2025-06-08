@@ -15,11 +15,12 @@ def clean_address_advanced(address):
     # 1단계: 기본 정제
     # 층수, 호수, 상세 정보 제거
     patterns_to_remove = [
-        r'\s*\d+층.*$',           # 1층, 2층 등
-        r'\s*지하\d+층.*$',       # 지하1층 등
-        r'\s*\d+호.*$',           # 101호 등
-        r'\s*[가-힣]+\s*\d+호.*$', # 상가 101호 등
-        r'\s*[A-Za-z0-9\s]+호.*$', # B1호 등
+        r'\s*\d+층.*$',
+        r'\s*지하\d+층.*$',
+        r'\s*\d+호.*$',
+        r'\s*[가-힣]+\s*\d+호.*$',
+        r'\s*[A-Za-z0-9\s]+호.*$',
+        r'\s*[A-Za-z0-9\s]+동.*$',  # 불필요한 동 정보 제거(예: "A동")
     ]
     
     for pattern in patterns_to_remove:
@@ -53,6 +54,8 @@ def get_coordinates_with_fallback(address, api_key):
     if pd.isna(address) or address == "":
         return None, None, "빈 주소"
     
+    status = "시도 안함"
+
     # 방법 1: 정제된 주소로 시도
     cleaned = clean_address_advanced(address)
     if cleaned != address:
