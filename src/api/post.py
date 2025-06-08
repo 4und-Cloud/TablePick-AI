@@ -44,7 +44,6 @@ def recommend_posts_for_user(
     """
     user_id로 사용자 태그를 추출, 태그와 게시글 텍스트 임베딩 기반 ML 추천
     """
-    print(f"API 호출: user_id={user_id}, page={page}, size={size}")
     results = recommendation_model.recommend_posts(user_id=user_id, page=page, size=size)
     if not results:
         raise HTTPException(status_code=404, detail="추천 게시글이 없습니다.")
