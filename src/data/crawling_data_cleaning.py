@@ -91,7 +91,7 @@ class RestaurantDataProcessor:
         except Exception as e:
             return None, None, f"예외: {str(e)}"
     
-    def get_coordinates_with_fallback(self, address):
+    def get_coordinates_with_fallback(self, address, gu_name):
         """여러 방법으로 좌표를 얻는 함수"""
         if pd.isna(address) or address == "":
             return None, None, "빈 주소"
@@ -106,7 +106,7 @@ class RestaurantDataProcessor:
                 return lat, lng, "정제된 주소 성공"
                 
         # 방법 2: 더 간단하게 정제
-        simple_address = self.extract_simple_address(address)
+        simple_address = self.extract_simple_address(address, gu_name)
         if simple_address:
             lat, lng, status = self.try_geocoding(simple_address)
             if lat is not None:
@@ -114,9 +114,9 @@ class RestaurantDataProcessor:
                 
         return None, None, f"모든 방법 실패: {status}"
     
-    def extract_simple_address(self, address):
+    def extract_simple_address(self, address, gu_name):
         """매우 간단한 주소 추출"""
-        simple_pattern = r'(서울\s*관악악구\s*[가-힣]+(?:로|길|대로))'
+        simple_pattern = fr'(서울\s*{gu_name}\s*[가-힣]+(?:로|길|대로))'
         match = re.search(simple_pattern, address)
         if match:
             return match.group(1)
@@ -177,9 +177,10 @@ class RestaurantDataProcessor:
         
         return df_result
     
-    def filter_gu_only(self, df):
+    def filter_gu_only(self, df, gu_name):
         """특정구 데이터만 필터링"""
-        return df[df['주소'].str.contains('관악구', na=False)].copy().reset_index(drop=True)
+        return df[df['주소'].str.contains(gu_name, na=False)].copy().reset_index(drop=True)
+
     
     def format_time_range(self, time_str):
         """시간 범위를 오전/오후 형식으로 변환"""
@@ -331,7 +332,7 @@ class RestaurantDataProcessor:
     #         # 파싱 실패 시 원본 반환
     #         return review_str
 
-    def process_complete_pipeline(self, input_file, output_file):
+    def process_complete_pipeline(self, input_file, output_file, gu_name):
         """전체 파이프라인 실행"""
         print("=== 음식점 데이터 전체 처리 시작 ===")
         
@@ -358,7 +359,7 @@ class RestaurantDataProcessor:
         
         # 5. 특정 구만 필터링
         print("5. 데이터만 필터링 중...")
-        df = self.filter_gu_only(df)
+        df = self.filter_gu_only(df, gu_name)
         print(f"   데이터: {len(df)}개")
         
         # 6. 영업시간 정제 (정보 없음 → 기본값)
@@ -375,7 +376,7 @@ class RestaurantDataProcessor:
         success_count = 0
         for index, row in df.iterrows():
             address = row['주소']
-            lat, lng, status = self.get_coordinates_with_fallback(address)
+            lat, lng, status = self.get_coordinates_with_fallback(address, gu_name)
             
             df.at[index, '위도'] = lat
             df.at[index, '경도'] = lng
@@ -426,6 +427,7 @@ def main():
     parser.add_argument('--api-key', type=str, default=None, help='VWorld API Key (환경변수 VWORLD_API_KEY 기본값)')
     parser.add_argument('--input', '-i', type=str, required=True, help='입력 CSV 파일 경로')
     parser.add_argument('--output', '-o', type=str, required=True, help='출력 CSV 파일 경로')
+    parser.add_argument('--gu', type=str, required=False, default='관악구', help='필터링할 구 이름 (예: 관악구, 동작구 등)')
     args = parser.parse_args()
 
     # 우선순위: 명령줄 인자 > 환경변수
@@ -436,7 +438,7 @@ def main():
     processor = RestaurantDataProcessor(api_key)
 
     try:
-        result_df = processor.process_complete_pipeline(args.input, args.output)
+        result_df = processor.process_complete_pipeline(args.input, args.output, args.gu)
         print("\n처리가 성공적으로 완료되었습니다!")
         print("\n=== 결과 미리보기 ===")
         print(f"컬럼: {list(result_df.columns)}")
