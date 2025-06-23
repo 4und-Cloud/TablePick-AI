@@ -39,7 +39,7 @@ async def generate_title(request: PostRequest):
 def recommend_posts_for_user(
     user_id: int,
     page: int = Query(0, description="페이지 번호"),
-    size: int = Query(6, description="페이지당 추천 게시글 수")
+    size: int = Query(30, description="페이지당 추천 게시글 수")
 ):
     """
     user_id로 사용자 태그를 추출, 태그와 게시글 텍스트 임베딩 기반 ML 추천
