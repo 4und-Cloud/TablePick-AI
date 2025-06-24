@@ -27,34 +27,39 @@ class DataLoader:
     def fetch_restaurant_df(self):
         query = """
             WITH tag_counts AS (
-            SELECT
-                restaurant_id,
-                tag_id,
-                COUNT(*) AS tag_count
-            FROM board_tag
-            GROUP BY restaurant_id, tag_id
+                SELECT
+                    restaurant_id,
+                    tag_id,
+                    COUNT(*) AS tag_count
+                FROM board_tag
+                GROUP BY restaurant_id, tag_id
             ),
             ranked_tags AS (
-            SELECT
-                restaurant_id,
-                tag_id,
-                ROW_NUMBER() OVER (
-                PARTITION BY restaurant_id
-                ORDER BY tag_count DESC
-                ) AS rnk
-            FROM tag_counts
+                SELECT
+                    restaurant_id,
+                    tag_id,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY restaurant_id
+                        ORDER BY tag_count DESC
+                    ) AS rnk
+                FROM tag_counts
             )
-            SELECT restaurant_id, tag_id
-            FROM ranked_tags
-            WHERE rnk <= 3;
+            SELECT r.restaurant_id, r.tag_id, t.name AS tag_name
+            FROM ranked_tags r
+            JOIN tag t ON r.tag_id = t.id
+            WHERE r.rnk <= 3;
         """
         df = pd.read_sql(query, self.engine)
 
-        # tagId를 리스트로 집계
-        grouped_df = df.groupby("restaurant_id")["tag_id"].apply(list).reset_index()
+        # tags를 딕셔너리 리스트로 묶음
+        grouped_df = df.groupby("restaurant_id").apply(
+            lambda x: [{"tag_id": tag_id, "tag_name": tag_name} for tag_id, tag_name in zip(x["tag_id"], x["tag_name"])]
+        ).reset_index(name="tags")
+
         return grouped_df
 
-    # 2️⃣ review_df: 리뷰 정보
+
+    # 2️⃣ review_df: 게시글 리뷰 정보
     def fetch_review_df(self):
         query = """
             WITH tag_counts AS (
@@ -72,27 +77,41 @@ class DataLoader:
                     ROW_NUMBER() OVER (PARTITION BY board_id ORDER BY tag_count DESC) AS rnk
                 FROM tag_counts
             )
-            SELECT board_id, tag_id
-            FROM ranked_tags
-            WHERE rnk <= 3;
+            SELECT r.board_id, r.tag_id, t.name AS tag_name
+            FROM ranked_tags r
+            JOIN tag t ON r.tag_id = t.id
+            WHERE r.rnk <= 3;
         """
         df = pd.read_sql(query, self.engine)
 
-        grouped_df = df.groupby("board_id")["tag_id"].apply(list).reset_index()
+        # tags를 딕셔너리 리스트로 묶음
+        grouped_df = df.groupby("board_id").apply(
+            lambda x: [{"tag_id": tag_id, "tag_name": tag_name} for tag_id, tag_name in zip(x["tag_id"], x["tag_name"])]
+        ).reset_index(name="tags")
+
         return grouped_df
 
-    # 3️⃣ user_data_df: 유저 선호 태그 등
+
+    # 3️⃣ user_data_df: 유저 선호 태그
     def fetch_user_data_df(self):
         query = """
             SELECT
-                member_id,
-                tag_id
-            FROM member_tag
+                mt.member_id,
+                mt.tag_id,
+                t.name AS tag_name
+            FROM member_tag mt
+            JOIN tag t ON mt.tag_id = t.id
         """
         df = pd.read_sql(query, self.engine)
 
-        grouped_df = df.groupby("member_id")["tag_id"].apply(list).reset_index()
+        # tags를 딕셔너리 리스트로 묶음
+        grouped_df = df.groupby("member_id").apply(
+            lambda x: [{"tag_id": tag_id, "tag_name": tag_name} for tag_id, tag_name in zip(x["tag_id"], x["tag_name"])]
+        ).reset_index(name="tags")
+
         return grouped_df
+
+
 
     # 4️⃣ user_behavior_df: ES에서 과거 유저 행동 로그 (30일)
     def fetch_user_restaurant_df(self, days=30):

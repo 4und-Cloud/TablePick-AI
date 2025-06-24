@@ -65,7 +65,7 @@ python src/data/initial_data_cleaning.py --input "data/raw/서울시 서대문�
 
 ### 크롤링 코드 사용법
 ex
-python src/data/crawler.py --input data/interim/ydp_restaurants_cleaned.csv --output data/external/ydp_crawling_restaurant_data.csv --district 영등포구 --start 5720
+python src/data/crawler.py --input data/interim/yongsan_restaurants_cleaned.csv --output data/external/yongsan_crawling_restaurant_data.csv --district 용산구 --start 1812
 
 ### 크롤링 데이터 정제
 ex (api-key는 env파일에 설정하셨다면 넣지 않으셔도 됩니다.)

@@ -1,12 +1,12 @@
+from dotenv import load_dotenv
+load_dotenv()
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 # from src.api import post
 # from src.api import restaurant
 from src.api import recommend
 from src.data.cache_initializer import cache_dataframe_init
-from dotenv import load_dotenv
 
-load_dotenv()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
