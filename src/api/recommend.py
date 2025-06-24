@@ -2,7 +2,7 @@ import os
 import redis
 from fastapi import APIRouter, HTTPException, Query
 from typing import List
-from src.models.recommendation_model import RecommendationModel
+from src.models.faiss_recommenderation_model import FaissRecommendationModel
 
 # 환경 변수로부터 Redis 연결
 REDIS_HOST = os.getenv("REDIS_HOST", "127.0.0.1")
@@ -10,7 +10,7 @@ REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
 
 # Redis 클라이언트 & 추천 모델 초기화
 rds = redis.StrictRedis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
-recommendation_model = RecommendationModel(rds)
+recommendation_model = FaissRecommendationModel(rds)
 
 # FastAPI 라우터
 router = APIRouter(prefix="/recommend", tags=["Recommendation"])
