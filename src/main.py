@@ -1,11 +1,14 @@
 from dotenv import load_dotenv
 load_dotenv()
+import os
+import redis
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 # from src.api import post
 # from src.api import restaurant
 from src.api import recommend
 from src.data.cache_initializer import cache_dataframe_init
+from src.models.faiss_recommenderation_model import FaissRecommendationModel
 
 
 @asynccontextmanager
@@ -13,7 +16,18 @@ async def lifespan(app: FastAPI):
     # 서버 시작 시 실행
     cache_dataframe_init()
 
-    yield  # 여기서 서버가 실행됨
+    redis_client = redis.StrictRedis(
+        host=os.getenv("REDIS_HOST", "127.0.0.1"),
+        port=int(os.getenv("REDIS_PORT", 6379)),
+        decode_responses=True
+    )
+    app.state.redis_client = redis_client
+    app.state.recommendation_model = FaissRecommendationModel(redis_client)
+
+    try:
+        yield  # 여기서 서버가 실행됨
+    finally:
+        redis_client.connection_pool.disconnect()
 
 app = FastAPI(
     title="음식점 추천 API",
