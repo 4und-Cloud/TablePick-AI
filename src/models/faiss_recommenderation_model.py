@@ -1,56 +1,42 @@
-﻿import math
 import json
+import math
+
+import faiss
 import numpy as np
 from sklearn.preprocessing import normalize
-import faiss
+
 
 class FaissRecommendationModel:
     def __init__(self, rds):
         self.rds = rds
-        self.tag_vocab = self._load_tag_vocab()
-        self.post_index, self.post_ids = self._build_index("df:review", "board_id")
-        self.restaurant_index, self.restaurant_ids = self._build_index("df:restaurant", "restaurant_id")
+        self.tag_vocab = self._load_json("rec:tag_vocab", [])
+        self.post_ids = self._load_json("rec:post_ids", [])
+        self.restaurant_ids = self._load_json("rec:restaurant_ids", [])
+        self.post_index = self._load_index("rec:post_vectors")
+        self.restaurant_index = self._load_index("rec:restaurant_vectors")
 
-    def _load_tag_vocab(self):
-        user_data_json = self.rds.get("df:user_data")
-        review_json = self.rds.get("df:review")
-        restaurant_json = self.rds.get("df:restaurant")
-
-        tags = set()
-        for data in [user_data_json, review_json, restaurant_json]:
-            if not data:
-                continue
-            for row in json.loads(data):
-                for tag_obj in row.get("tags", []):
-                    tags.add(tag_obj["tag_id"])
-        return sorted(tags)
+    def _load_json(self, key, default):
+        json_data = self.rds.get(key)
+        if not json_data:
+            return default
+        return json.loads(json_data)
 
     def _to_vector(self, tags):
-        return np.array([1 if tag in tags else 0 for tag in self.tag_vocab], dtype=np.float32)
+        tag_set = set(tags)
+        return np.array([1 if tag in tag_set else 0 for tag in self.tag_vocab], dtype=np.float32)
 
-    def _build_index(self, redis_key, id_key):
-        json_data = self.rds.get(redis_key)
-        if not json_data:
-            return None, []
+    def _load_index(self, vector_key):
+        if not self.tag_vocab:
+            return None
 
-        data = json.loads(json_data)
-        item_ids = []
-        item_vectors = []
+        vectors = self._load_json(vector_key, [])
+        if not vectors:
+            return None
 
-        for row in data:
-            tag_ids = [tag["tag_id"] for tag in row.get("tags", [])]
-            vec = self._to_vector(tag_ids)
-            item_vectors.append(vec)
-            item_ids.append(row[id_key])
-
-        if not item_vectors:
-            return None, []
-
-        item_vectors = normalize(np.array(item_vectors, dtype=np.float32), axis=1)
+        item_vectors = np.array(vectors, dtype=np.float32)
         index = faiss.IndexFlatIP(len(self.tag_vocab))
         index.add(item_vectors)
-
-        return index, item_ids
+        return index
 
     def get_user_tags(self, user_id: int):
         user_data_json = self.rds.get("df:user_data")
@@ -107,8 +93,13 @@ class FaissRecommendationModel:
         if not user_tags:
             return []
         return self._recommend_from_index(
-            user_tags, self.post_index, self.post_ids,
-            ctr_prefix="board", user_id=user_id, page=page, size=size
+            user_tags,
+            self.post_index,
+            self.post_ids,
+            ctr_prefix="board",
+            user_id=user_id,
+            page=page,
+            size=size,
         )
 
     def recommend_restaurants(self, user_id: int, page: int = 0, size: int = 6):
@@ -116,6 +107,11 @@ class FaissRecommendationModel:
         if not user_tags:
             return []
         return self._recommend_from_index(
-            user_tags, self.restaurant_index, self.restaurant_ids,
-            ctr_prefix="restaurant", user_id=user_id, page=page, size=size
+            user_tags,
+            self.restaurant_index,
+            self.restaurant_ids,
+            ctr_prefix="restaurant",
+            user_id=user_id,
+            page=page,
+            size=size,
         )
