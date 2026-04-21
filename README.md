@@ -183,11 +183,17 @@ ES_HOST=http://localhost:9200
 
 ### 4. 필수 인프라 실행
 
-> 서버 시작 시 추천 캐시 초기화를 수행하므로 아래 서비스가 모두 실행 중이어야 합니다.
+> 서버 시작 전에 아래 서비스가 모두 실행 중이어야 하며, 먼저 refresh 스크립트를 실행해야 합니다.
 > 
 - MySQL
 - Redis
 - Elasticsearch
+
+Refresh recommendation data and FAISS-ready assets before starting the API:
+
+```bash
+python scripts/refresh_recommendation.py
+```
 
 ---
 
@@ -221,4 +227,3 @@ http://127.0.0.1:8000/docs
 - 배치 캐싱과 실시간 로그 반영 구조 분리
 - 신규 사용자에 대한 fallback 추천 전략 추가
 - 추천 결과 다양성(diversity) 개선
-
